@@ -11,6 +11,7 @@ import {
 import { DataSource, DMMF, GeneratorConfig } from '@prisma/generator-helper/dist';
 import glob from 'glob';
 import { CustomAttributes, Field, Model } from './dmmf-extension';
+import deepEqual from 'deep-equal';
 
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
@@ -74,28 +75,25 @@ function mixModels(inputModels: Model[]) {
   for (const newModel of inputModels) {
     const existingModel: Model | null = models[newModel.name];
     // if the model already exists in our found models, merge the fields
+    //console.log(existingModel);
     if (existingModel) {
       const existingFieldNames = existingModel.fields.map((f) => f.name);
       for (const newField of newModel.fields) {
         // if this field exists in the existing model
-        if (existingFieldNames.includes(newField.name)) {
-          const existingFieldIndex: number = existingFieldNames.indexOf(newField.name);
-
-          // Assign columnName (@map) based on existing field if found
-          const existingField: Field = existingModel.fields[existingFieldIndex];
-          if (!newField.columnName && existingField.columnName) {
-            newField.columnName = existingField.columnName;
-          }
-
-          // Assign defaults based on existing field if found
-          if (!newField.hasDefaultValue && existingField.hasDefaultValue) {
-            newField.hasDefaultValue = true;
-            newField.default = existingField.default;
-          }
-
-          // replace the field at this index with the new one
-          existingModel.fields[existingFieldIndex] = newField;
-        } else {
+        var found = false;
+        for (const existingField of existingModel.fields) {
+          //if the model already contains a field with the same name
+          if (existingField.name === newField.name) {
+            found = true;
+            //if matching fieldname but does not contain all the same field properties
+            if (!(deepEqual(existingField, newField))) {
+                console.error("Field " + existingField.name + " of model " + existingModel.name + " mismatch! Please check all prisma schemas for model " + existingModel.name + ".");
+                //console.log(existingField);
+                //console.log(newField);
+            }
+          } 
+        }
+        if (!found) {
           // if it doesn't already exist, append to field list
           existingModel.fields.push(newField);
         }
@@ -184,9 +182,16 @@ export async function prismix(options: PrismixOptions) {
 
     // load the schema data for all inputs
     for (const input of mixer.input) {
+      var found = false;
       for (const file of glob.sync(input)) {
         const parsedSchema = await getSchema(file);
-        if (parsedSchema) schemasToMix.push(parsedSchema);
+        if (parsedSchema) {
+          schemasToMix.push(parsedSchema);
+          var found = true;
+        } 
+      }
+      if (!found) {
+        console.log("Error: No filename : " + input + " found! Please check your prismix.config.json and see if the file exists.");
       }
     }
 
