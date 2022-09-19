@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { promisify } from 'util';
 import path from 'path';
-import { getDMMF, getConfig } from '@prisma/sdk';
+import { getDMMF, getConfig } from '@prisma/internals';
 import {
   deserializeEnums,
   deserializeDatasources,
