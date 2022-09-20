@@ -49,7 +49,11 @@ async function getSchema(schemaPath: string) {
             ...field,
             columnName: attributes.columnName,
             dbType: attributes.dbType,
-            relationOnUpdate: attributes.relationOnUpdate
+            relationOnUpdate: attributes.relationOnUpdate,
+            shareable: attributes.shareable,
+            inaccessible: attributes.inaccessible,
+            external: attributes.external,
+            requires: attributes.requires
           };
         }
       )
@@ -74,10 +78,13 @@ function mixModels(inputModels: Model[]) {
   const models: Record<string, Model> = {};
   for (const newModel of inputModels) {
     const existingModel: Model | null = models[newModel.name];
-    // if the model already exists in our found models, merge the fields
+    // if the model already exists in our found models, validate the primary key, validate for conflicting fields, and merge non-conflicting fields
     //console.log(existingModel);
     if (existingModel) {
-      const existingFieldNames = existingModel.fields.map((f) => f.name);
+      //First validate if existingModel and newModel have matching primary key
+      
+
+      //Validate for conflicting fields, if non-conflicting, proceed to merge field to schema
       for (const newField of newModel.fields) {
         // if this field exists in the existing model
         var found = false;
@@ -85,6 +92,7 @@ function mixModels(inputModels: Model[]) {
           //if the model already contains a field with the same name
           if (existingField.name === newField.name) {
             found = true;
+            console.log(existingField)
             //if matching fieldname but does not contain all the same field properties
             if (!(deepEqual(existingField, newField))) {
                 console.error("Field " + existingField.name + " of model " + existingModel.name + " mismatch! Please check all prisma schemas for model " + existingModel.name + ".");
@@ -145,6 +153,7 @@ function getCustomAttributes(datamodel: string) {
       // Regex for getting our @map attribute
       const mapRegex = new RegExp(/[^@]@map\("(?<name>.*)"\)/);
       const dbRegex = new RegExp(/(?<type>@db\.(.[^\s@]*))/);
+      const federationDirectiveRegex = new RegExp(/\/\/@(?<attribute>shareable|inaccessible|external|requires)/gi);
       const relationOnUpdateRegex = new RegExp(
         /onUpdate: (?<op>Cascade|NoAction|Restrict|SetDefault|SetNull)/
       );
@@ -160,12 +169,16 @@ function getCustomAttributes(datamodel: string) {
           const columnName = field.match(mapRegex)?.groups?.name;
           const dbType = field.match(dbRegex)?.groups?.type;
           const relationOnUpdate = field.match(relationOnUpdateRegex)?.groups?.op;
-          return [field.trim().split(' ')[0], { columnName, dbType, relationOnUpdate }] as [
+          const federationAttributes = [...field.matchAll(federationDirectiveRegex)]?.map(matches => 
+              matches.filter(match => match.includes("//@"))[0].toLowerCase()
+          );
+
+          return [field.trim().split(' ')[0], { columnName, dbType, relationOnUpdate, shareable: federationAttributes?.includes("//@shareable"), inaccessible: federationAttributes?.includes("//@inaccessible"), external: federationAttributes?.includes("//@external"), requires: federationAttributes?.includes("//@requires")}] as [
             string,
             CustomAttributes['fields'][0]
           ];
         })
-        .filter((f) => f[1]?.columnName || f[1]?.dbType || f[1]?.relationOnUpdate);
+        .filter((f) => f[1]?.columnName || f[1]?.dbType || f[1]?.relationOnUpdate || f[1]?.external || f[1]?.inaccessible || f[1]?.requires || f[1]?.shareable);
 
       return {
         ...modelDefinitions,

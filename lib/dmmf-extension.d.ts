@@ -3,6 +3,10 @@ export type CustomFieldAttributes = {
   columnName?: string;
   dbType?: string;
   relationOnUpdate?: string;
+  shareable?: boolean;
+  inaccessible?: boolean;
+  external?: boolean;
+  requires?: boolean;
 };
 export type CustomModelAttributes = { doubleAtIndexes?: string[] };
 

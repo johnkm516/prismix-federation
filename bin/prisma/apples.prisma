@@ -10,11 +10,13 @@ generator client {
 model Apple {
   seeds   Int
   core    String  @unique
+
+  @@map("applesf")
 }
 
 // models examples
 model User {
-  id        Int       @unique @default(1)
+  id        Int       @unique @default(autoincrement())
   createdAt DateTime  @default(now())
   email     String    @unique
   name      String?

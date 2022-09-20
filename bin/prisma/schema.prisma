@@ -7,8 +7,9 @@ generator client {
 	provider = "prisma-client-js"
 }
 model Apple {
-	seeds Int 
-	core String @id
+	seeds Int @unique
+	core String @unique
+	@@map("applesd")
 }
 model User {
 	id Int @unique @default(autoincrement())
@@ -25,6 +26,7 @@ model User {
 	comments Comment[] @relation(name: "CommentToUser")
 	whale String 
 	cat String 
+	@@map("users")
 	@@id([id, email])
 }
 model Post {

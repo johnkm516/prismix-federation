@@ -8,8 +8,10 @@ generator client {
 }
 
 model Apple {
-  seeds   Int
-  core    String  @id
+  seeds   Int     @unique //@Shareable //@external
+  core    String  @unique
+
+  @@map("applesd")
 }
 
 // models examples
@@ -27,6 +29,7 @@ model User {
   /// @onDelete(SET_NULL)
   comments  Comment[]
   @@id([id, email])
+  @@map("users")
 }
 
 model Post {
