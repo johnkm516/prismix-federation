@@ -92,7 +92,6 @@ function mixModels(inputModels: Model[]) {
           //if the model already contains a field with the same name
           if (existingField.name === newField.name) {
             found = true;
-            console.log(existingField)
             //if matching fieldname but does not contain all the same field properties
             if (!(deepEqual(existingField, newField))) {
                 console.error("Field " + existingField.name + " of model " + existingModel.name + " mismatch! Please check all prisma schemas for model " + existingModel.name + ".");
@@ -166,12 +165,15 @@ function getCustomAttributes(datamodel: string) {
         .filter((f) => f);
       const fieldsWithCustomAttributes = pieces
         .map((field) => {
+          console.log(field);
           const columnName = field.match(mapRegex)?.groups?.name;
           const dbType = field.match(dbRegex)?.groups?.type;
           const relationOnUpdate = field.match(relationOnUpdateRegex)?.groups?.op;
           const federationAttributes = [...field.matchAll(federationDirectiveRegex)]?.map(matches => 
               matches.filter(match => match.includes("//@"))[0].toLowerCase()
           );
+
+          [...field.matchAll(federationDirectiveRegex)].forEach(element => console.log(element));
 
           return [field.trim().split(' ')[0], { columnName, dbType, relationOnUpdate, shareable: federationAttributes?.includes("//@shareable"), inaccessible: federationAttributes?.includes("//@inaccessible"), external: federationAttributes?.includes("//@external"), requires: federationAttributes?.includes("//@requires")}] as [
             string,
