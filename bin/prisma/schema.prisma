@@ -6,57 +6,34 @@ datasource db {
 generator client {
 	provider = "prisma-client-js"
 }
-model Apple {
-	seeds Int @unique
-	core String @unique
-	@@map("applesd")
+model Post {
+	id Int @id @default(autoincrement())
+	title String 
+	content String 
+	account_id Int 
+	account Account @relation(name: "AccountToPost", fields: [account_id], references: [id])
+	@@unique([content, title])
+	@@unique([title, id])
+	@@map("posts")
+}
+model Account {
+	id Int @id @default(autoincrement())
+	posts Post[] @relation(name: "AccountToPost")
+	username String 
+	email String 
+	status String 
+	@@map("accounts")
 }
 model User {
-	id Int @unique @default(autoincrement())
-	createdAt DateTime @default(now())
-	email String @unique
-	name String? 
-	password String 
-	role Role 
-	/// @onDelete(CASCADE)
-	posts Post[] @relation(name: "PostToUser")
-	group Group? @relation(name: "GroupToUser", fields: [groupId], references: [id])
-	groupId Int? 
-	/// @onDelete(SET_NULL)
-	comments Comment[] @relation(name: "CommentToUser")
-	whale String 
-	cat String 
-	@@map("users")
-	@@id([id, email])
+	id Int @unique
+	firstname String 
+	lastname String 
+	@@id([firstname, lastname])
 }
-model Post {
-	id Int @unique @default(autoincrement())
-	published Boolean @default(false)
-	title String 
-	author User? @relation(name: "PostToUser", fields: [authorId], references: [id])
-	authorId Int? @unique
-	/// @onDelete(CASCADE)
-	comments Comment[] @relation(name: "CommentToPost")
-	createdAt DateTime @default(now())
-	updatedAt DateTime @updatedAt
-}
-model Comment {
-	id Int @id @default(autoincrement())
-	contain String 
-	post Post @relation(name: "CommentToPost", fields: [postId], references: [id])
-	postId Int 
-	author User? @relation(name: "CommentToUser", fields: [authorId], references: [id])
-	authorId Int? 
-	createdAt DateTime @default(now())
-	updatedAt DateTime @updatedAt
-}
-model Group {
+model Product {
 	id Int @id @default(autoincrement())
 	name String 
-	createdAt DateTime @default(now())
-	updatedAt DateTime @updatedAt
-	/// @onDelete(SET_NULL)
-	users User[] @relation(name: "GroupToUser")
+	price Int 
 }
 enum Role {
 	USER

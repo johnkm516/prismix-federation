@@ -1,0 +1,18 @@
+datasource db {
+  provider = "postgresql"
+  url      = "DATABASE_URL"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+}
+
+model Review {
+  id         Int     @id @default(autoincrement())
+  product Product?   //@external
+  score Int
+}
+
+model Product {
+  id  Int @id
+}

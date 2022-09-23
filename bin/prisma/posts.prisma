@@ -6,62 +6,28 @@ datasource db {
 generator client {
   provider        = "prisma-client-js"
 }
-
-model Apple {
-  seeds   Int     @unique //@Shareable //@external
-  core    String  @unique
-
-  @@map("applesd")
-}
-
-// models examples
-model User {
-  id        Int       @unique @default(autoincrement())
-  createdAt DateTime  @default(now())
-  email     String    @unique
-  name      String?
-  password  String
-  role      Role
-  /// @onDelete(CASCADE)
-  posts     Post[]
-  group     Group?    @relation(fields: [groupId], references: [id])
-  groupId   Int?
-  /// @onDelete(SET_NULL)
-  comments  Comment[]
-  @@id([id, email])
-  @@map("users")
-}
-
 model Post {
-  id        Int       @unique @default(autoincrement())
-  published Boolean   @default(false)
-  title     String
-  author    User?     @relation(fields: [authorId], references: [id])
-  authorId  Int?      @unique
-  /// @onDelete(CASCADE)
-  comments  Comment[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+    id         Int     @id @default(autoincrement())
+    title      String
+    content    String
+    account_id Int
+    account    Account @relation(fields: [account_id], references: [id])
+
+    @@map("posts")
+    @@unique([content, title])
+    @@unique([title,  id])
 }
 
-model Comment {
-  id        Int      @id @default(autoincrement())
-  contain   String
-  post      Post     @relation(fields: [postId], references: [id])
-  postId    Int      
-  author    User?    @relation(fields: [authorId], references: [id])
-  authorId  Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Account {
+    id     Int @id
+    posts  Post[]
 }
 
-model Group {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  /// @onDelete(SET_NULL)
-  users     User[]
+model User {
+  id      Int     @unique
+  firstname String
+  lastname  String
+  @@id([firstname, lastname])
 }
 
 enum Role {

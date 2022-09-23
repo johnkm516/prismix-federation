@@ -3,12 +3,16 @@ export type CustomFieldAttributes = {
   columnName?: string;
   dbType?: string;
   relationOnUpdate?: string;
+  isKeyField?: boolean;
   shareable?: boolean;
   inaccessible?: boolean;
   external?: boolean;
   requires?: boolean;
 };
-export type CustomModelAttributes = { doubleAtIndexes?: string[] };
+export type CustomModelAttributes = { 
+  doubleAtIndexes?: string[], 
+  isStub?: boolean
+};
 
 export type CustomAttributes = {
   fields: Record<string, CustomFieldAttributes>;

@@ -12,6 +12,7 @@ import { DataSource, DMMF, GeneratorConfig } from '@prisma/generator-helper/dist
 import glob from 'glob';
 import { CustomAttributes, Field, Model } from './dmmf-extension';
 import deepEqual from 'deep-equal';
+import { string } from '@oclif/command/lib/flags';
 
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
@@ -25,6 +26,8 @@ export interface PrismixOptions {
   mixers: MixerOptions[];
 }
 
+type MixModel = { model: Model, schemaPath: string, fieldRecords: Record<string, Field>, keyFields: string[][] }
+
 type UnPromisify<T> = T extends Promise<infer U> ? U : T;
 
 type Schema = NonNullable<UnPromisify<ReturnType<typeof getSchema>>>;
@@ -34,30 +37,49 @@ async function getSchema(schemaPath: string) {
     const schema = await readFile(path.join(process.cwd(), schemaPath), {
       encoding: 'utf-8'
     });
-
-    const dmmf = await getDMMF({ datamodel: schema });
     const customAttributes = getCustomAttributes(schema);
-    const models: Model[] = dmmf.datamodel.models.map((model: Model) => ({
-      ...model,
-      doubleAtIndexes: customAttributes[model.name]?.doubleAtIndexes,
-      fields: model.fields.map((field) =>
-        // Inject columnName and db.Type from the parsed fieldMappings above
-        {
-          const attributes = customAttributes[model.name]?.fields[field.name] ?? {};
+    const dmmf = await getDMMF({ datamodel: schema });
+    const modelFieldRecords: Record<string, { fields: Record<string, Field>} > = {};
+    const models: MixModel[] = dmmf.datamodel.models.map((model: Model) => {
+      modelFieldRecords[model.name] = { fields: {}};
+      let keyFields: string[][] = [];
+      if (model.primaryKey?.fields) {
+        keyFields.push(model.primaryKey?.fields);
+      }
+      if (model.uniqueFields) {
+        model.uniqueFields.forEach(uniques => keyFields.push(uniques));
+      }
+      return {
+        model: {
+          ...model,
+          doubleAtIndexes: customAttributes[model.name]?.doubleAtIndexes,
+          fields: model.fields.map((field) =>
+            // Inject columnName and db.Type from the parsed fieldMappings above
+            {
+              const attributes = customAttributes[model.name]?.fields[field.name] ?? {};
 
-          return {
-            ...field,
-            columnName: attributes.columnName,
-            dbType: attributes.dbType,
-            relationOnUpdate: attributes.relationOnUpdate,
-            shareable: attributes.shareable,
-            inaccessible: attributes.inaccessible,
-            external: attributes.external,
-            requires: attributes.requires
-          };
-        }
-      )
-    }));
+              modelFieldRecords[model.name].fields[field.name] = {
+                ...field,
+                columnName: attributes.columnName,
+                dbType: attributes.dbType,
+                relationOnUpdate: attributes.relationOnUpdate,
+                shareable: attributes.shareable,
+                inaccessible: attributes.inaccessible,
+                external: attributes.external,
+                requires: attributes.requires
+              }
+              if (field.isId || (field.isRequired && field.isUnique)) {
+                keyFields.push([field.name]);
+              } 
+              return modelFieldRecords[model.name].fields[field.name];
+            }
+          )
+        },
+        schemaPath: schemaPath,
+        fieldRecords: modelFieldRecords[model.name].fields,
+        keyFields: keyFields
+      }
+    });
     const config = await getConfig({ datamodel: schema });
 
     return {
@@ -74,63 +96,59 @@ async function getSchema(schemaPath: string) {
   }
 }
 
-function mixModels(inputModels: Model[]) {
-  const models: Record<string, Model> = {};
+function mixModels(inputModels: MixModel[]) {
+  const models: Record<string, MixModel> = {};
+  //console.log(inputModels);
   for (const newModel of inputModels) {
-    const existingModel: Model | null = models[newModel.name];
+    console.log(newModel.model.name + "\n");
+    newModel.keyFields.forEach(keyfields => console.log("[" + keyfields + "]"));
+    const existingModel: MixModel | null = models[newModel.model.name];
     // if the model already exists in our found models, validate the primary key, validate for conflicting fields, and merge non-conflicting fields
-    //console.log(existingModel);
     if (existingModel) {
+      const existingFieldNames = existingModel.model.fields.map((f) => f.name);
       //First validate if existingModel and newModel have matching primary key
       
-
       //Validate for conflicting fields, if non-conflicting, proceed to merge field to schema
-      for (const newField of newModel.fields) {
-        // if this field exists in the existing model
-        var found = false;
-        for (const existingField of existingModel.fields) {
-          //if the model already contains a field with the same name
-          if (existingField.name === newField.name) {
-            found = true;
-            //if matching fieldname but does not contain all the same field properties
-            if (!(deepEqual(existingField, newField))) {
-                console.error("Field " + existingField.name + " of model " + existingModel.name + " mismatch! Please check all prisma schemas for model " + existingModel.name + ".");
-                //console.log(existingField);
-                //console.log(newField);
-            }
-          } 
-        }
-        if (!found) {
-          // if it doesn't already exist, append to field list
-          existingModel.fields.push(newField);
+      for (const newField of newModel.model.fields) {
+        if (existingModel.fieldRecords[newField.name]) {
+          const existingFieldIndex: number = existingFieldNames.indexOf(newField.name);
+          
+
+          // Assign defaults based on existing field if found
+          
+
+          // replace the field at this index with the new one
+          existingModel.model.fields[existingFieldIndex] = newField;
+        } else {
+          existingModel.model.fields.push(newField);
         }
       }
-      // Assign dbName (@@map) based on new model if found
-      if (!existingModel.dbName && newModel.dbName) {
-        existingModel.dbName = newModel.dbName;
+      // Assign dbName (@@map) based on new model if existingModel does not have one but newModel does
+      if (!existingModel.model.dbName && newModel.model.dbName) {
+        existingModel.model.dbName = newModel.model.dbName;
       }
 
       // Merge doubleAtIndexes (@@index) based on new model if found
-      if (newModel.doubleAtIndexes?.length) {
-        existingModel.doubleAtIndexes = [
-          ...(existingModel.doubleAtIndexes ?? []),
-          ...newModel.doubleAtIndexes
+      if (newModel.model.doubleAtIndexes?.length) {
+        existingModel.model.doubleAtIndexes = [
+          ...(existingModel.model.doubleAtIndexes ?? []),
+          ...newModel.model.doubleAtIndexes
         ];
       }
 
       // Merge unique indexes (@@unique) based on new model if found
-      if (newModel.uniqueIndexes?.length) {
-        existingModel.uniqueIndexes = [
-          ...(existingModel.uniqueIndexes ?? []),
-          ...newModel.uniqueIndexes
+      if (newModel.model.uniqueIndexes?.length) {
+        existingModel.model.uniqueIndexes = [
+          ...(existingModel.model.uniqueIndexes ?? []),
+          ...newModel.model.uniqueIndexes
         ];
-        existingModel.uniqueFields = [
-          ...(existingModel.uniqueFields ?? []),
-          ...newModel.uniqueFields
+        existingModel.model.uniqueFields = [
+          ...(existingModel.model.uniqueFields ?? []),
+          ...newModel.model.uniqueFields
         ];
       }
     } else {
-      models[newModel.name] = newModel;
+      models[newModel.model.name] = newModel;
     }
   }
   return Object.values(models);
@@ -165,15 +183,12 @@ function getCustomAttributes(datamodel: string) {
         .filter((f) => f);
       const fieldsWithCustomAttributes = pieces
         .map((field) => {
-          console.log(field);
           const columnName = field.match(mapRegex)?.groups?.name;
           const dbType = field.match(dbRegex)?.groups?.type;
           const relationOnUpdate = field.match(relationOnUpdateRegex)?.groups?.op;
           const federationAttributes = [...field.matchAll(federationDirectiveRegex)]?.map(matches => 
               matches.filter(match => match.includes("//@"))[0].toLowerCase()
           );
-
-          [...field.matchAll(federationDirectiveRegex)].forEach(element => console.log(element));
 
           return [field.trim().split(' ')[0], { columnName, dbType, relationOnUpdate, shareable: federationAttributes?.includes("//@shareable"), inaccessible: federationAttributes?.includes("//@inaccessible"), external: federationAttributes?.includes("//@external"), requires: federationAttributes?.includes("//@requires")}] as [
             string,
@@ -211,7 +226,7 @@ export async function prismix(options: PrismixOptions) {
     }
 
     // extract all models and mix
-    let models: Model[] = [];
+    let models: MixModel[] = [];
     for (const schema of schemasToMix) models = [...models, ...schema.models];
     models = mixModels(models);
 
@@ -236,7 +251,7 @@ export async function prismix(options: PrismixOptions) {
       '// *** GENERATED BY PRISMIX :: DO NOT EDIT ***',
       await deserializeDatasources(datasources),
       await deserializeGenerators(generators),
-      await deserializeModels(models),
+      await deserializeModels(models.map(mixModel => mixModel.model)),
       await deserializeEnums(enums)
     ]
       .filter((e) => e)

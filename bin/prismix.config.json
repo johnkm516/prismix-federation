@@ -3,7 +3,8 @@
     {
         "input": [
             "prisma/posts.prisma",
-            "prisma/apples.prisma"
+            "prisma/base.prisma",
+            "prisma/reviews.prisma"
         ],
         "output": "prisma/schema.prisma"
     }
